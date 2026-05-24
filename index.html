@@ -27,10 +27,20 @@
       }
     }
   </script>
+  <style>
+    @media (min-width: 1024px) and (max-width: 1279px) {
+      .converter-grid {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+      }
+      .converter-side {
+        grid-column: 1 / -1 !important;
+      }
+    }
+  </style>
 </head>
 <body class="min-h-screen bg-paper text-ink font-sans antialiased">
   <div class="pointer-events-none fixed inset-0 [background:linear-gradient(180deg,rgba(255,255,255,.8),rgba(247,243,234,.72)),linear-gradient(90deg,rgba(23,38,43,.045)_1px,transparent_1px),linear-gradient(rgba(23,38,43,.045)_1px,transparent_1px)] [background-size:auto,28px_28px,28px_28px]"></div>
-  <main x-data="converterApp()" x-init="init()" class="relative mx-auto flex h-screen w-[min(1440px,100vw)] flex-col overflow-hidden px-5 py-5 max-sm:px-3">
+  <main x-data="converterApp()" x-init="init()" class="relative mx-auto flex min-h-screen w-[min(1440px,100vw)] flex-col px-5 py-5 max-sm:px-3 xl:h-screen xl:overflow-hidden">
     <header class="mb-4 flex shrink-0 items-center justify-between gap-4 border-b border-ink/10 pb-4 max-lg:flex-col max-lg:items-start">
       <div class="min-w-0">
         <div class="mb-2 flex flex-wrap items-center gap-2">
@@ -42,23 +52,23 @@
         <p class="mt-2 max-w-4xl text-sm leading-6 text-soft">粘贴或拖入 unified JSONL、Codex JSON / JSONL、SUB bundle JSON，浏览器内完成标准化、claim 回填、CPA/SUB 导出。</p>
       </div>
       <div class="grid w-full max-w-[520px] grid-cols-3 gap-2 max-sm:grid-cols-1 lg:w-[520px]">
-        <div class="rounded-xl border border-ink/10 bg-white px-4 py-3 shadow-sm">
+        <div class="rounded-xl border border-ink/10 bg-white px-4 py-3">
           <div class="text-xs text-soft">识别结果</div>
           <div class="mt-1 truncate font-semibold" x-text="formatLabel"></div>
         </div>
-        <div class="rounded-xl border border-ink/10 bg-white px-4 py-3 shadow-sm">
+        <div class="rounded-xl border border-ink/10 bg-white px-4 py-3">
           <div class="text-xs text-soft">记录数</div>
           <div class="mt-1 font-semibold" x-text="recordCount"></div>
         </div>
-        <div class="rounded-xl border border-ink/10 bg-white px-4 py-3 shadow-sm">
+        <div class="rounded-xl border border-ink/10 bg-white px-4 py-3">
           <div class="text-xs text-soft">待回填</div>
           <div class="mt-1 font-semibold" x-text="`${backfillCount} 条`"></div>
         </div>
       </div>
     </header>
 
-    <section class="grid min-h-0 flex-1 grid-cols-[minmax(360px,.92fr)_minmax(420px,1.08fr)_300px] gap-4 overflow-hidden max-xl:grid-cols-[minmax(0,1fr)_320px] max-lg:grid-cols-1 max-lg:overflow-auto">
-      <section class="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-sm max-lg:min-h-[520px]">
+    <section class="converter-grid grid grid-cols-[minmax(360px,.92fr)_minmax(420px,1.08fr)_300px] gap-4 overflow-visible max-xl:grid-cols-[minmax(0,1fr)_320px] max-lg:grid-cols-1 xl:min-h-0 xl:flex-1 xl:overflow-hidden">
+      <section class="flex min-h-[620px] flex-col overflow-hidden rounded-2xl border border-ink/10 bg-white max-lg:min-h-[520px] xl:min-h-0">
         <div class="flex items-start justify-between gap-3 border-b border-ink/10 px-5 py-4">
           <div>
             <div class="text-xs font-semibold uppercase tracking-[.14em] text-tide">Source</div>
@@ -87,8 +97,8 @@
             placeholder="粘贴 JSON / JSONL，或把 .json / .jsonl / .txt 文件拖到这里。"
           ></textarea>
           <div class="pointer-events-none absolute bottom-4 left-5 right-5 flex flex-wrap items-center justify-between gap-2 text-xs text-soft">
-            <span class="rounded-full bg-white/80 px-3 py-1 shadow-sm">支持 unified、Codex、SUB bundle</span>
-            <span class="rounded-full bg-white/80 px-3 py-1 shadow-sm" x-text="fileName"></span>
+            <span class="rounded-full bg-white/80 px-3 py-1">支持 unified、Codex、SUB bundle</span>
+            <span class="rounded-full bg-white/80 px-3 py-1" x-text="fileName"></span>
           </div>
           <input x-ref="file" type="file" accept=".json,.jsonl,.txt" class="sr-only" @change="handleFileSelect($event)">
         </div>
@@ -108,7 +118,7 @@
                 <i data-lucide="eraser" class="h-4 w-4"></i>
                 <span>清空</span>
               </button>
-              <button type="button" @click="convert()" class="inline-flex min-h-11 items-center gap-2 rounded-lg bg-ink px-5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(23,38,43,.18)] transition hover:-translate-y-px hover:bg-[#21363d]" title="开始转换">
+              <button type="button" @click="convert()" class="inline-flex min-h-11 items-center gap-2 rounded-lg bg-ink px-5 text-sm font-semibold text-white transition hover:-translate-y-px hover:bg-[#21363d]" title="开始转换">
                 <i data-lucide="play" class="h-4 w-4"></i>
                 <span>转换</span>
               </button>
@@ -122,7 +132,7 @@
         </div>
       </section>
 
-      <section class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-2xl border border-ink/10 bg-[#0f1d21] shadow-sm max-lg:min-h-[520px]">
+      <section class="grid min-h-[620px] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-2xl border border-ink/10 bg-[#0f1d21] max-lg:min-h-[520px] xl:min-h-0">
         <div class="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[.04] px-5 py-4 max-sm:flex-col max-sm:items-start">
           <div class="min-w-0">
             <div class="text-xs font-semibold uppercase tracking-[.14em] text-[#7dd3c7]">Output</div>
@@ -143,17 +153,17 @@
         <pre class="m-0 min-h-0 overflow-auto bg-[#0f1d21] p-5 font-mono text-[12.5px] leading-6 text-[#dce9e7]" x-text="outputText"></pre>
       </section>
 
-      <aside class="grid min-h-0 content-start gap-4 overflow-auto pr-1 max-xl:col-span-2 max-lg:col-span-1 max-lg:overflow-visible max-lg:pr-0">
-        <section class="rounded-2xl border border-ink/10 bg-white p-5 shadow-sm">
+      <aside class="converter-side grid content-start gap-4 overflow-visible pr-1 max-xl:col-span-2 max-lg:col-span-1 max-lg:pr-0 xl:min-h-0 xl:overflow-auto">
+        <section class="rounded-2xl border border-ink/10 bg-white p-5">
           <div class="flex items-center gap-2 text-sm font-bold text-tide"><i data-lucide="info" class="h-4 w-4"></i><span>当前输出</span></div>
           <p class="mt-3 text-sm leading-6 text-soft" x-text="summary"></p>
           <div class="mt-4 border-t border-ink/10 pt-4 text-sm leading-6 text-soft" x-html="shapeText"></div>
         </section>
-        <section class="rounded-2xl border border-ink/10 bg-white p-5 shadow-sm">
+        <section class="rounded-2xl border border-ink/10 bg-white p-5">
           <div class="flex items-center gap-2 text-sm font-bold text-brick"><i data-lucide="shield-check" class="h-4 w-4"></i><span>处理规则</span></div>
           <p class="mt-3 text-sm leading-6 text-soft">保留显式账号字段，移除 <code class="font-mono">model_mapping</code>。如果 token 中已同时存在 <code class="font-mono">chatgpt_account_id</code> 和 <code class="font-mono">account_id</code> claim，则保持原 token 不变。</p>
         </section>
-        <section class="rounded-2xl border border-ink/10 bg-white p-5 shadow-sm">
+        <section class="rounded-2xl border border-ink/10 bg-white p-5">
           <div class="flex items-center justify-between gap-3">
             <div>
               <div class="flex items-center gap-2 text-sm font-bold text-brick"><i data-lucide="message-circle" class="h-4 w-4"></i><span>售后群</span></div>
