@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ChatGPT 统一格式转 CPA / SUB</title>
+  <script src="./assets/vendor/tailwindcdn.js"></script>
+  <script defer src="./assets/vendor/alpine.min.js"></script>
+  <script defer src="./assets/vendor/lucide.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Segoe UI Variable Text', 'Aptos', 'Trebuchet MS', 'sans-serif'],
+            mono: ['Cascadia Code', 'Consolas', 'monospace']
+          },
+          colors: {
+            ink: '#17262b',
+            soft: '#5f6f73',
+            clay: '#b84f2a',
+            brick: '#8f2f1d',
+            tide: '#0f766e',
+            paper: '#f7f3ea'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="min-h-screen bg-paper text-ink font-sans antialiased">
+  <div class="pointer-events-none fixed inset-0 [background:linear-gradient(180deg,rgba(255,255,255,.8),rgba(247,243,234,.72)),linear-gradient(90deg,rgba(23,38,43,.045)_1px,transparent_1px),linear-gradient(rgba(23,38,43,.045)_1px,transparent_1px)] [background-size:auto,28px_28px,28px_28px]"></div>
+  <main x-data="converterApp()" x-init="init()" class="relative mx-auto flex h-screen w-[min(1440px,100vw)] flex-col overflow-hidden px-5 py-5 max-sm:px-3">
+    <header class="mb-4 flex shrink-0 items-center justify-between gap-4 border-b border-ink/10 pb-4 max-lg:flex-col max-lg:items-start">
+      <div class="min-w-0">
+        <div class="mb-2 flex flex-wrap items-center gap-2">
+          <span class="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-white"><i data-lucide="shuffle" class="h-4 w-4"></i></span>
+          <span class="rounded-full border border-tide/20 bg-tide/10 px-3 py-1 text-xs font-semibold uppercase tracking-[.14em] text-tide">Local Converter</span>
+          <span class="rounded-full border border-clay/20 bg-clay/10 px-3 py-1 text-xs font-semibold text-brick">纯前端实现，不存储用户任何数据</span>
+        </div>
+        <h1 class="text-[clamp(26px,3vw,42px)] font-bold leading-tight tracking-normal">ChatGPT 统一格式转 CPA / SUB</h1>
+        <p class="mt-2 max-w-4xl text-sm leading-6 text-soft">粘贴或拖入 unified JSONL、Codex JSON / JSONL、SUB bundle JSON，浏览器内完成标准化、claim 回填、CPA/SUB 导出。</p>
+      </div>
+      <div class="grid w-full max-w-[520px] grid-cols-3 gap-2 max-sm:grid-cols-1 lg:w-[520px]">
+        <div class="rounded-xl border border-ink/10 bg-white px-4 py-3 shadow-sm">
+          <div class="text-xs text-soft">识别结果</div>
+          <div class="mt-1 truncate font-semibold" x-text="formatLabel"></div>
+        </div>
+        <div class="rounded-xl border border-ink/10 bg-white px-4 py-3 shadow-sm">
+          <div class="text-xs text-soft">记录数</div>
+          <div class="mt-1 font-semibold" x-text="recordCount"></div>
+        </div>
+        <div class="rounded-xl border border-ink/10 bg-white px-4 py-3 shadow-sm">
+          <div class="text-xs text-soft">待回填</div>
+          <div class="mt-1 font-semibold" x-text="`${backfillCount} 条`"></div>
+        </div>
+      </div>
+    </header>
+
+    <section class="grid min-h-0 flex-1 grid-cols-[minmax(360px,.92fr)_minmax(420px,1.08fr)_300px] gap-4 overflow-hidden max-xl:grid-cols-[minmax(0,1fr)_320px] max-lg:grid-cols-1 max-lg:overflow-auto">
+      <section class="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-sm max-lg:min-h-[520px]">
+        <div class="flex items-start justify-between gap-3 border-b border-ink/10 px-5 py-4">
+          <div>
+            <div class="text-xs font-semibold uppercase tracking-[.14em] text-tide">Source</div>
+            <h2 class="mt-1 text-xl font-bold tracking-normal">源记录</h2>
+          </div>
+          <button type="button" @click="$refs.file.click()" class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-ink/10 bg-paper px-3 text-sm font-medium text-ink transition hover:bg-white hover:shadow-sm" title="加载文件">
+            <i data-lucide="folder-open" class="h-4 w-4"></i>
+            <span>加载文件</span>
+          </button>
+        </div>
+
+        <div
+          class="relative min-h-0 flex-1 border-b border-ink/10 transition"
+          :class="dragging ? 'bg-tide/10 ring-2 ring-inset ring-tide/40' : 'bg-[#fbfaf6]'"
+          @dragenter.prevent="dragging = true"
+          @dragover.prevent="dragging = true"
+          @dragleave.prevent="dragging = false"
+          @dragend.prevent="dragging = false"
+          @drop.prevent="handleDrop($event)"
+        >
+          <textarea
+            x-model="source"
+            @input="updateDetection()"
+            spellcheck="false"
+            class="h-full min-h-0 w-full resize-none overflow-auto bg-transparent px-5 py-5 pb-14 font-mono text-[13px] leading-6 text-ink outline-none placeholder:text-soft/70"
+            placeholder="粘贴 JSON / JSONL，或把 .json / .jsonl / .txt 文件拖到这里。"
+          ></textarea>
+          <div class="pointer-events-none absolute bottom-4 left-5 right-5 flex flex-wrap items-center justify-between gap-2 text-xs text-soft">
+            <span class="rounded-full bg-white/80 px-3 py-1 shadow-sm">支持 unified、Codex、SUB bundle</span>
+            <span class="rounded-full bg-white/80 px-3 py-1 shadow-sm" x-text="fileName"></span>
+          </div>
+          <input x-ref="file" type="file" accept=".json,.jsonl,.txt" class="sr-only" @change="handleFileSelect($event)">
+        </div>
+
+        <div class="grid gap-3 p-4">
+          <div class="grid grid-cols-[1fr_auto] gap-3 max-sm:grid-cols-1">
+            <label class="grid gap-1.5 text-sm text-soft">
+              <span>输出模式</span>
+              <select x-model="mode" @change="syncMode()" class="min-h-11 rounded-lg border border-ink/15 bg-white px-3 text-ink outline-none ring-tide/20 transition focus:ring-4">
+                <option value="normalize">标准化 unified JSONL</option>
+                <option value="to-cpa">转 CPA</option>
+                <option value="to-sub">转 SUB</option>
+              </select>
+            </label>
+            <div class="flex items-end gap-2">
+              <button type="button" @click="clearAll()" class="inline-flex min-h-11 items-center gap-2 rounded-lg border border-ink/10 bg-white px-4 text-sm font-medium text-soft transition hover:bg-paper" title="清空">
+                <i data-lucide="eraser" class="h-4 w-4"></i>
+                <span>清空</span>
+              </button>
+              <button type="button" @click="convert()" class="inline-flex min-h-11 items-center gap-2 rounded-lg bg-ink px-5 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(23,38,43,.18)] transition hover:-translate-y-px hover:bg-[#21363d]" title="开始转换">
+                <i data-lucide="play" class="h-4 w-4"></i>
+                <span>转换</span>
+              </button>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 rounded-lg border border-amber-300/60 bg-amber-50 px-3 py-2 text-sm text-amber-900" :class="mode === 'to-cpa' ? '' : 'opacity-60'">
+            <i data-lucide="archive" class="h-4 w-4 shrink-0"></i>
+            <span>CPA 多账号会自动导出 <code class="font-mono">.tar</code>，单账号导出 JSON。</span>
+          </div>
+          <div class="min-h-5 whitespace-pre-wrap text-sm text-red-700" x-text="error"></div>
+        </div>
+      </section>
+
+      <section class="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-2xl border border-ink/10 bg-[#0f1d21] shadow-sm max-lg:min-h-[520px]">
+        <div class="flex items-center justify-between gap-3 border-b border-white/10 bg-white/[.04] px-5 py-4 max-sm:flex-col max-sm:items-start">
+          <div class="min-w-0">
+            <div class="text-xs font-semibold uppercase tracking-[.14em] text-[#7dd3c7]">Output</div>
+            <h2 class="mt-1 text-xl font-bold tracking-normal text-white">输出预览</h2>
+            <small class="block truncate text-white/55" x-text="meta"></small>
+          </div>
+          <div class="flex shrink-0 flex-wrap gap-2">
+            <button type="button" @click="copyOutput()" :disabled="!outputText" class="inline-flex min-h-10 items-center gap-2 rounded-lg border border-white/10 bg-white/10 px-3 text-sm font-medium text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40" title="复制">
+              <i data-lucide="copy" class="h-4 w-4"></i>
+              <span x-text="copyLabel"></span>
+            </button>
+            <button type="button" @click="downloadOutput()" :disabled="!outputText" class="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#f2c46d] px-3 text-sm font-semibold text-[#23180b] transition hover:bg-[#ffd98a] disabled:cursor-not-allowed disabled:opacity-40" title="下载">
+              <i data-lucide="download" class="h-4 w-4"></i>
+              <span>下载</span>
+            </button>
+          </div>
+        </div>
+        <pre class="m-0 min-h-0 overflow-auto bg-[#0f1d21] p-5 font-mono text-[12.5px] leading-6 text-[#dce9e7]" x-text="outputText"></pre>
+      </section>
+
+      <aside class="grid min-h-0 content-start gap-4 overflow-auto pr-1 max-xl:col-span-2 max-lg:col-span-1 max-lg:overflow-visible max-lg:pr-0">
+        <section class="rounded-2xl border border-ink/10 bg-white p-5 shadow-sm">
+          <div class="flex items-center gap-2 text-sm font-bold text-tide"><i data-lucide="info" class="h-4 w-4"></i><span>当前输出</span></div>
+          <p class="mt-3 text-sm leading-6 text-soft" x-text="summary"></p>
+          <div class="mt-4 border-t border-ink/10 pt-4 text-sm leading-6 text-soft" x-html="shapeText"></div>
+        </section>
+        <section class="rounded-2xl border border-ink/10 bg-white p-5 shadow-sm">
+          <div class="flex items-center gap-2 text-sm font-bold text-brick"><i data-lucide="shield-check" class="h-4 w-4"></i><span>处理规则</span></div>
+          <p class="mt-3 text-sm leading-6 text-soft">保留显式账号字段，移除 <code class="font-mono">model_mapping</code>。如果 token 中已同时存在 <code class="font-mono">chatgpt_account_id</code> 和 <code class="font-mono">account_id</code> claim，则保持原 token 不变。</p>
+        </section>
+        <section class="rounded-2xl border border-ink/10 bg-white p-5 shadow-sm">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2 text-sm font-bold text-brick"><i data-lucide="message-circle" class="h-4 w-4"></i><span>售后群</span></div>
+              <p class="mt-3 text-sm leading-6 text-soft">扫码加入售后群，查看导出说明或反馈账号格式问题。</p>
+            </div>
+            <img src="./support_group.jpg" alt="售后群二维码" class="h-[112px] w-[112px] rounded-xl border border-ink/10 object-cover p-1">
+          </div>
+        </section>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    function converterApp() {
+      const DEFAULT_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
+      const DEFAULT_PRIVACY_MODE = "training_off";
+      const te = new TextEncoder();
+      const td = new TextDecoder();
+
+      function firstText(...values) { for (const value of values) { const text = String(value ?? "").trim(); if (text) return text; } return ""; }
+      function coerceTs(value) { if (typeof value === "number" && Number.isFinite(value)) return Math.max(0, Math.trunc(value)); const text = String(value ?? "").trim(); if (!text) return 0; if (/^-?\d+$/.test(text)) return Math.max(0, parseInt(text, 10)); const parsed = Date.parse(text); return Number.isNaN(parsed) ? 0 : Math.max(0, Math.trunc(parsed / 1000)); }
+      function looksLikeEmail(value) { const text = String(value ?? "").trim(); if (!text || /\s/.test(text)) return false; const parts = text.split("@"); return parts.length === 2 && Boolean(parts[0]) && Boolean(parts[1]); }
+      function b64uToText(text) { let value = String(text ?? "").replace(/-/g, "+").replace(/_/g, "/"); const remainder = value.length % 4; if (remainder) value += "=".repeat(4 - remainder); const binary = atob(value); const bytes = Uint8Array.from(binary, ch => ch.charCodeAt(0)); return td.decode(bytes); }
+      function decodeJwtPayload(token) { try { const parts = String(token ?? "").split("."); if (parts.length < 2) return {}; const parsed = JSON.parse(b64uToText(parts[1])); return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}; } catch { return {}; } }
+      function b64uBytes(bytes) { let binary = ""; for (const byte of bytes) binary += String.fromCharCode(byte); return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, ""); }
+      function b64uJson(value) { return b64uBytes(te.encode(JSON.stringify(value))); }
+      function extractAuth(payload) { const value = payload?.["https://api.openai.com/auth"]; return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+      function extractProfile(payload) { const value = payload?.["https://api.openai.com/profile"]; return value && typeof value === "object" && !Array.isArray(value) ? value : {}; }
+      function extractAccountIdFromAuth(auth) { const accountId = firstText(auth?.chatgpt_account_id, auth?.account_id); if (accountId) return accountId; const accountUserId = firstText(auth?.chatgpt_account_user_id); if (accountUserId.includes("__")) { const suffix = accountUserId.split("__").pop().trim(); if (suffix) return suffix; } return ""; }
+      function extractOrganizationId(idAuth, accessAuth) { const organizationId = firstText(idAuth?.organization_id, accessAuth?.organization_id); if (organizationId) return organizationId; const organizations = idAuth?.organizations || accessAuth?.organizations || []; if (Array.isArray(organizations)) { for (const item of organizations) { const value = firstText(item?.id); if (value) return value; } } return ""; }
+      function sanitizeFilename(name, fallback) { const cleaned = String(name ?? "").trim().replace(/[<>:"/\\|?*\u0000-\u001f]+/g, "_"); return cleaned || fallback; }
+      function pad2(value) { return String(value).padStart(2, "0"); }
+      function pad3(value) { return String(value).padStart(3, "0"); }
+      function utc8Date(date) { return new Date(date.getTime() + 8 * 3600000); }
+      function toIso8(date) { const shifted = utc8Date(date); return `${shifted.getUTCFullYear()}-${pad2(shifted.getUTCMonth() + 1)}-${pad2(shifted.getUTCDate())}T${pad2(shifted.getUTCHours())}:${pad2(shifted.getUTCMinutes())}:${pad2(shifted.getUTCSeconds())}.${pad3(shifted.getUTCMilliseconds())}+08:00`; }
+      function formatExportTimestamp(date = new Date()) { const shifted = utc8Date(date); return `${shifted.getUTCFullYear()}${pad2(shifted.getUTCMonth() + 1)}${pad2(shifted.getUTCDate())}_${pad2(shifted.getUTCHours())}${pad2(shifted.getUTCMinutes())}${pad2(shifted.getUTCSeconds())}`; }
+      function exportFileName(count, ext, timestamp = formatExportTimestamp()) { const safeCount = Math.max(1, parseInt(count, 10) || 1); return `${safeCount}_${timestamp}.${ext}`; }
+      function compatSeeds(accountId, userId, email) { const seed = (firstText(accountId, userId, email, "unknown").replace(/[^a-zA-Z0-9]/g, "").slice(0, 24) || "unknown"); return { org: `org-${seed}`, proj: `proj_${seed}`, sid: `compat_session_${seed}` }; }
+      function buildLocalCompatIdToken(args) {
+        const aid = firstText(args.accountId), raw = firstText(args.idToken); if (!aid) return raw;
+        const idPayload = decodeJwtPayload(raw), accessPayload = decodeJwtPayload(args.accessToken), basePayload = Object.keys(idPayload).length ? idPayload : accessPayload;
+        if (!Object.keys(basePayload).length) return raw;
+        const baseAuth = extractAuth(basePayload), profile = extractProfile(basePayload), email = firstText(profile.email, basePayload.email, args.email);
+        const userId = firstText(args.userId, baseAuth.chatgpt_user_id, baseAuth.user_id, basePayload.sub);
+        const seeds = compatSeeds(aid, userId, email);
+        const orgId = firstText(args.organizationId, baseAuth.organization_id, extractOrganizationId(baseAuth, baseAuth), seeds.org);
+        const projId = firstText(args.projectId, baseAuth.project_id, seeds.proj);
+        const auth = { ...baseAuth };
+        auth.chatgpt_account_id = firstText(auth.chatgpt_account_id, auth.account_id, aid);
+        auth.account_id = firstText(auth.account_id, auth.chatgpt_account_id, aid);
+        if (userId) { auth.chatgpt_user_id = firstText(auth.chatgpt_user_id, auth.user_id, userId); auth.user_id = firstText(auth.user_id, auth.chatgpt_user_id, userId); }
+        auth.chatgpt_plan_type = firstText(auth.chatgpt_plan_type, args.planType, "free");
+        if (!firstText(auth.organization_id)) auth.organization_id = orgId;
+        if (!Array.isArray(auth.organizations) || !auth.organizations.length) auth.organizations = [{ id: orgId, is_default: true, role: "owner", title: "Personal" }];
+        if (!firstText(auth.project_id)) auth.project_id = projId;
+        if (!("completed_platform_onboarding" in auth)) auth.completed_platform_onboarding = false;
+        if (!Array.isArray(auth.groups)) auth.groups = [];
+        if (!("is_org_owner" in auth)) auth.is_org_owner = true;
+        if (!("localhost" in auth)) auth.localhost = true;
+        const payload = { ...basePayload, "https://api.openai.com/auth": auth };
+        if (email && !firstText(payload.email)) payload.email = email;
+        if (!("email_verified" in payload)) payload.email_verified = true;
+        if (!firstText(payload.iss)) payload.iss = "https://auth.openai.com";
+        if (!payload.aud) payload.aud = [DEFAULT_CLIENT_ID];
+        if (!firstText(payload.auth_provider)) payload.auth_provider = "password";
+        const authTime = coerceTs(payload.pwd_auth_time || payload.auth_time || payload.rat || payload.iat);
+        if (authTime && !coerceTs(payload.auth_time)) payload.auth_time = authTime;
+        const sid = firstText(payload.sid, payload.session_id, seeds.sid);
+        if (sid && !firstText(payload.sid)) payload.sid = sid;
+        if (sid && !firstText(payload.session_id)) payload.session_id = sid;
+        if (!firstText(payload.sub) && userId) payload.sub = userId;
+        if (!firstText(payload.jti)) { const compact = (firstText(args.accessToken, raw, aid, userId, email).replace(/[^a-zA-Z0-9]/g, "").slice(0, 32) || "compat"); payload.jti = `compat-${compact}`; }
+        if (!firstText(payload.name) && email) payload.name = email.split("@")[0] || "OpenAI User";
+        return `${b64uJson({ alg: "RS256", typ: "JWT", kid: "compat" })}.${b64uJson(payload)}.${b64uBytes(te.encode("compat_signature_for_local_parsing_only"))}`;
+      }
+      function ensureIdTokenClaims(args) {
+        const token = firstText(args.idToken), accountId = firstText(args.accountId); if (!accountId) return token;
+        const payload = decodeJwtPayload(token);
+        if (!Object.keys(payload).length) return buildLocalCompatIdToken(args);
+        const auth = { ...extractAuth(payload) }, existingChatgpt = firstText(auth.chatgpt_account_id), existingAccount = firstText(auth.account_id), resolved = firstText(existingChatgpt, existingAccount, accountId);
+        if (existingChatgpt && existingAccount) return token;
+        auth.chatgpt_account_id = firstText(existingChatgpt, resolved);
+        auth.account_id = firstText(existingAccount, resolved);
+        if (args.userId) { auth.chatgpt_user_id = firstText(auth.chatgpt_user_id, auth.user_id, args.userId); auth.user_id = firstText(auth.user_id, auth.chatgpt_user_id, args.userId); }
+        if (args.organizationId && !firstText(auth.organization_id)) auth.organization_id = args.organizationId;
+        if (args.projectId && !firstText(auth.project_id)) auth.project_id = args.projectId;
+        if (args.planType && !firstText(auth.chatgpt_plan_type)) auth.chatgpt_plan_type = args.planType;
+        const updated = { ...payload, "https://api.openai.com/auth": auth }, parts = token.split("."), head = parts[0] || b64uJson({ alg: "RS256", typ: "JWT", kid: "compat" }), sig = parts[2] || b64uBytes(te.encode("compat_signature_for_local_parsing_only"));
+        return `${head}.${b64uJson(updated)}.${sig}`;
+      }
+      function finalizeRecord(record) {
+        const item = { ...record };
+        item.chatgpt_account_id = firstText(item.chatgpt_account_id, item.account_id);
+        item.project_id = firstText(item.project_id, item.workspace_id);
+        item.workspace_id = firstText(item.workspace_id, item.project_id);
+        if (!item.client_id) item.client_id = DEFAULT_CLIENT_ID;
+        if (!item.privacy_mode) item.privacy_mode = DEFAULT_PRIVACY_MODE;
+        if (!("openai_oauth_responses_websockets_v2_enabled" in item)) item.openai_oauth_responses_websockets_v2_enabled = false;
+        if (!item.openai_oauth_responses_websockets_v2_mode) item.openai_oauth_responses_websockets_v2_mode = "off";
+        item.id_token = ensureIdTokenClaims({ idToken: firstText(item.id_token), accessToken: firstText(item.access_token), accountId: firstText(item.chatgpt_account_id), userId: firstText(item.chatgpt_user_id), organizationId: firstText(item.organization_id), projectId: firstText(item.project_id, item.workspace_id), email: firstText(item.email, item.account_claims_email), planType: firstText(item.plan_type, "free") });
+        return item;
+      }
+      function createTarArchive(files) {
+        function put(dst, offset, text) { const bytes = te.encode(String(text ?? "")); dst.set(bytes.slice(0, Math.max(0, dst.length - offset)), offset); }
+        function oct(value, length) { const text = Math.max(0, Math.trunc(value)).toString(8); return `${text}`.padStart(length - 1, "0") + "\0"; }
+        function checksum(header) { let sum = 0; for (const byte of header) sum += byte; return `${sum.toString(8).padStart(6, "0")}\0 `; }
+        const blocks = [];
+        for (const file of files) {
+          const name = sanitizeFilename(file.name, "file.json").slice(0, 99), bytes = file.bytes instanceof Uint8Array ? file.bytes : te.encode(String(file.text ?? "")), header = new Uint8Array(512);
+          put(header, 0, name); put(header, 100, "0000777\0"); put(header, 108, "0000000\0"); put(header, 116, "0000000\0"); put(header, 124, oct(bytes.length, 12)); put(header, 136, oct(Math.trunc(Date.now() / 1000), 12)); put(header, 148, "        "); put(header, 156, "0"); put(header, 257, "ustar\0"); put(header, 263, "00"); put(header, 148, checksum(header));
+          blocks.push(header, bytes); const pad = (512 - (bytes.length % 512)) % 512; if (pad) blocks.push(new Uint8Array(pad));
+        }
+        blocks.push(new Uint8Array(1024));
+        const total = blocks.reduce((size, block) => size + block.length, 0), output = new Uint8Array(total); let offset = 0;
+        for (const block of blocks) { output.set(block, offset); offset += block.length; }
+        return output;
+      }
+      function normalizeRecord(item) {
+        if (!item || typeof item !== "object" || Array.isArray(item) || Array.isArray(item.accounts)) return null;
+        let email = "", password = "", loginIdentity = "", phone = "", accessToken = "", refreshToken = "", idToken = "", sessionToken = "", clientId = "", chatgptAccountId = "", chatgptUserId = "", organizationId = "", projectId = "", workspaceId = "", createdAt = 0, lastUsed = 0, status = "", source = "", disabled = false, accountClaimsEmail = "", privacyMode = "", wsEnabled = null, wsMode = "";
+        if (item.tokens && typeof item.tokens === "object" && !Array.isArray(item.tokens)) {
+          const tokens = item.tokens;
+          email = firstText(item.email); accessToken = firstText(tokens.access_token); refreshToken = firstText(tokens.refresh_token); idToken = firstText(tokens.id_token);
+          chatgptAccountId = firstText(item.chatgpt_account_id, item.account_id); createdAt = coerceTs(item.created_at); lastUsed = coerceTs(item.last_used); source = "codex_input";
+        } else if (item.credentials && typeof item.credentials === "object" && !Array.isArray(item.credentials)) {
+          const credentials = item.credentials, extra = item.extra && typeof item.extra === "object" && !Array.isArray(item.extra) ? item.extra : {};
+          email = firstText(extra.email, credentials.email, item.name); accessToken = firstText(credentials.access_token); refreshToken = firstText(credentials.refresh_token); idToken = firstText(credentials.id_token);
+          sessionToken = firstText(credentials.session_token); clientId = firstText(credentials.client_id, DEFAULT_CLIENT_ID); chatgptAccountId = firstText(credentials.chatgpt_account_id, credentials.account_id, item.chatgpt_account_id, item.account_id);
+          chatgptUserId = firstText(credentials.chatgpt_user_id); organizationId = firstText(credentials.organization_id); projectId = firstText(credentials.project_id); workspaceId = firstText(projectId);
+          createdAt = coerceTs(item.created_at); lastUsed = coerceTs(item.last_used); status = firstText(item.status); source = firstText(item.notes, "sub_bundle_input"); disabled = Boolean(item.disabled);
+          accountClaimsEmail = firstText(extra.email); privacyMode = firstText(extra.privacy_mode); wsEnabled = extra.openai_oauth_responses_websockets_v2_enabled; wsMode = firstText(extra.openai_oauth_responses_websockets_v2_mode);
+        } else {
+          email = firstText(item.email); password = firstText(item.password); loginIdentity = firstText(item.login_identity); phone = firstText(item.phone); accessToken = firstText(item.access_token); refreshToken = firstText(item.refresh_token); idToken = firstText(item.id_token);
+          sessionToken = firstText(item.session_token); clientId = firstText(item.client_id, DEFAULT_CLIENT_ID); chatgptAccountId = firstText(item.chatgpt_account_id, item.account_id); chatgptUserId = firstText(item.chatgpt_user_id);
+          organizationId = firstText(item.organization_id); projectId = firstText(item.project_id); workspaceId = firstText(item.workspace_id, projectId); createdAt = coerceTs(item.created_at); lastUsed = coerceTs(item.last_used);
+          status = firstText(item.status); source = firstText(item.source, "unified_input"); disabled = Boolean(item.disabled); accountClaimsEmail = firstText(item.account_claims_email); privacyMode = firstText(item.privacy_mode);
+          wsEnabled = item.openai_oauth_responses_websockets_v2_enabled; wsMode = firstText(item.openai_oauth_responses_websockets_v2_mode);
+        }
+        if (!email) return null;
+        const idPayload = decodeJwtPayload(idToken), accessPayload = decodeJwtPayload(accessToken), idAuth = extractAuth(idPayload), accessAuth = extractAuth(accessPayload), accessProfile = extractProfile(accessPayload);
+        const record = {
+          version: parseInt(item.version || 1, 10) || 1, platform: firstText(item.platform, "chatgpt"), email, password, login_identity: firstText(loginIdentity), phone: firstText(phone), access_token: accessToken, refresh_token: refreshToken, id_token: idToken,
+          session_token: sessionToken, client_id: firstText(clientId, DEFAULT_CLIENT_ID),
+          chatgpt_account_id: firstText(chatgptAccountId, extractAccountIdFromAuth(idAuth), extractAccountIdFromAuth(accessAuth)),
+          chatgpt_user_id: firstText(chatgptUserId, idAuth.chatgpt_user_id, idAuth.user_id, idAuth.chatgpt_account_user_id, accessAuth.chatgpt_user_id, accessAuth.user_id, accessAuth.chatgpt_account_user_id),
+          organization_id: firstText(organizationId, extractOrganizationId(idAuth, accessAuth)),
+          project_id: firstText(projectId, workspaceId, idAuth.project_id, accessAuth.project_id),
+          workspace_id: firstText(workspaceId, projectId, idAuth.project_id, accessAuth.project_id),
+          created_at: createdAt, last_used: lastUsed, status, source, disabled,
+          account_claims_email: firstText(accountClaimsEmail, idPayload.email, accessProfile.email),
+          plan_type: firstText(item.plan_type, idAuth.chatgpt_plan_type, accessAuth.chatgpt_plan_type, "free"),
+          privacy_mode: firstText(privacyMode, DEFAULT_PRIVACY_MODE),
+          openai_oauth_responses_websockets_v2_enabled: wsEnabled !== null ? Boolean(wsEnabled) : false,
+          openai_oauth_responses_websockets_v2_mode: firstText(wsMode, "off")
+        };
+        if (record.login_identity && !record.phone && !looksLikeEmail(record.login_identity)) record.phone = record.login_identity;
+        return finalizeRecord(record);
+      }
+      function parseInputItems(text) {
+        const trimmed = String(text ?? "").trim();
+        if (!trimmed) return { items: [], shape: "空输入" };
+        let root = null;
+        try { root = JSON.parse(trimmed); } catch { root = null; }
+        const items = [];
+        let shape = "JSONL";
+        if (root && typeof root === "object" && !Array.isArray(root)) {
+          if (Array.isArray(root.accounts)) { items.push(...root.accounts.filter(v => v && typeof v === "object" && !Array.isArray(v))); shape = "SUB bundle JSON"; }
+          else { items.push(root); shape = root.tokens ? "Codex JSON" : "Unified JSON"; }
+        } else if (Array.isArray(root)) {
+          items.push(...root.filter(v => v && typeof v === "object" && !Array.isArray(v)));
+          shape = items[0]?.tokens ? "Codex JSON 数组" : "JSON 数组";
+        } else {
+          for (const rawLine of trimmed.split(/\r?\n/)) {
+            const line = rawLine.trim();
+            if (!line || line.startsWith("#")) continue;
+            const parsed = JSON.parse(line);
+            if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+              if (Array.isArray(parsed.accounts)) { items.push(...parsed.accounts.filter(v => v && typeof v === "object" && !Array.isArray(v))); shape = "SUB bundle JSONL"; }
+              else items.push(parsed);
+            }
+          }
+          if (items[0]?.tokens) shape = "Codex JSONL";
+          else if (items[0]?.credentials) shape = "SUB 账号 JSONL";
+          else shape = "Unified JSONL";
+        }
+        return { items, shape };
+      }
+      function normalizeRecordsFromText(text) {
+        const { items, shape } = parseInputItems(text), recordMap = new Map(); let pending = 0;
+        for (const item of items) {
+          const before = extractAuth(decodeJwtPayload(firstText(item?.id_token, item?.credentials?.id_token, item?.tokens?.id_token)));
+          const hadClaims = Boolean(firstText(before.chatgpt_account_id) && firstText(before.account_id));
+          const record = normalizeRecord(item);
+          if (!record) continue;
+          const after = extractAuth(decodeJwtPayload(record.id_token));
+          const hasClaims = Boolean(firstText(after.chatgpt_account_id) && firstText(after.account_id));
+          if (!hadClaims && hasClaims && firstText(record.chatgpt_account_id)) pending += 1;
+          recordMap.set(record.email.trim().toLowerCase(), record);
+        }
+        return { records: [...recordMap.values()], shape, pending };
+      }
+      function buildCpaPayload(record) { const item = finalizeRecord(record), exp = coerceTs(decodeJwtPayload(item.access_token).exp); return { type: "codex", email: item.email, expired: exp ? toIso8(new Date(exp * 1000)) : "", id_token: item.id_token, account_id: firstText(item.chatgpt_account_id), disabled: Boolean(item.disabled), access_token: item.access_token, last_refresh: toIso8(new Date()), refresh_token: item.refresh_token }; }
+      function buildSubAccount(record) {
+        const item = finalizeRecord(record); let exp = coerceTs(decodeJwtPayload(item.access_token).exp); if (!exp) exp = Math.trunc(Date.now() / 1000) + 863999;
+        return { name: item.email, platform: "openai", type: "oauth", credentials: { access_token: item.access_token, chatgpt_account_id: item.chatgpt_account_id, chatgpt_user_id: item.chatgpt_user_id, client_id: firstText(item.client_id, DEFAULT_CLIENT_ID), email: item.email, expires_at: exp, id_token: item.id_token, organization_id: item.organization_id, plan_type: firstText(item.plan_type, "free"), refresh_token: item.refresh_token }, extra: { email: item.email, openai_oauth_responses_websockets_v2_enabled: Boolean(item.openai_oauth_responses_websockets_v2_enabled), openai_oauth_responses_websockets_v2_mode: firstText(item.openai_oauth_responses_websockets_v2_mode, "off"), privacy_mode: firstText(item.privacy_mode, DEFAULT_PRIVACY_MODE) }, concurrency: 10, priority: 1, rate_multiplier: 1, auto_pause_on_expired: true };
+      }
+      function buildOutput(records, mode) {
+        if (!records.length) throw new Error("当前输入里没有解析出有效记录。");
+        if (mode === "normalize") {
+          const lines = records.map(record => JSON.stringify(record)), text = `${lines.join("\n")}${lines.length ? "\n" : ""}`;
+          return { text, parts: [text], name: exportFileName(records.length, "jsonl"), mime: "application/json;charset=utf-8", summary: `已标准化 ${records.length} 条记录，输出 unified JSONL。`, shape: "输出为 unified JSONL，保留显式账号字段，且不包含 model_mapping。" };
+        }
+        if (mode === "to-cpa") {
+          const payloads = records.map(buildCpaPayload);
+          if (payloads.length === 1) {
+            const text = JSON.stringify(payloads[0], null, 2);
+            return { text, parts: [text], name: exportFileName(1, "json"), mime: "application/json;charset=utf-8", summary: "已生成 1 个 CPA token JSON。", shape: "输出为单个 CPA JSON 文件。" };
+          }
+          const stamp = formatExportTimestamp();
+          const files = payloads.map(payload => ({ name: `${sanitizeFilename(payload.email, "account")}.json`, text: JSON.stringify(payload, null, 2) }));
+          const tarBytes = createTarArchive(files);
+          const previewLines = ["CPA .tar 包内文件：", ...files.map(file => `- ${file.name}`)];
+          return { text: previewLines.join("\n"), parts: [tarBytes], name: exportFileName(payloads.length, "tar", stamp), mime: "application/x-tar", summary: `已生成 1 个 CPA tar 压缩包，包含 ${files.length} 个单账号 JSON 文件。`, shape: "CPA 多账号会自动打包为 .tar，压缩包内每个账号单独一个 JSON 文件。" };
+        }
+        if (mode === "to-sub") {
+          const bundle = { exported_at: new Date().toISOString(), proxies: [], accounts: records.map(buildSubAccount) }, text = JSON.stringify(bundle, null, 2);
+          return { text, parts: [text], name: exportFileName(bundle.accounts.length, "json"), mime: "application/json;charset=utf-8", summary: `已生成 1 个 SUB bundle JSON，包含 ${bundle.accounts.length} 个账号。`, shape: "输出为 SUB bundle JSON，包含 credentials.chatgpt_account_id 和已回填的 id_token claim。" };
+        }
+        throw new Error(`不支持的模式：${mode}`);
+      }
+
+      return {
+        source: "",
+        mode: "normalize",
+        dragging: false,
+        fileName: "未选择文件",
+        formatLabel: "等待输入",
+        recordCount: 0,
+        backfillCount: 0,
+        outputText: "",
+        outputName: "",
+        outputMime: "text/plain;charset=utf-8",
+        outputParts: [],
+        meta: "尚未生成",
+        error: "",
+        copyLabel: "复制",
+        summary: "还没有输出。确认识别结果正确后再执行转换。",
+        shapeText: "<code class=\"font-mono\">normalize</code> 下载 unified JSONL，<code class=\"font-mono\">to-sub</code> 下载 bundle JSON，多账号 <code class=\"font-mono\">to-cpa</code> 自动打包为 <code class=\"font-mono\">.tar</code>，压缩包内每个账号单独一个 JSON。导出文件名为 <code class=\"font-mono\">数量_YYYYMMDD_HHmmss</code>。",
+        init() {
+          this.updateDetection();
+          const refreshIcons = () => window.lucide?.createIcons?.();
+          requestAnimationFrame(refreshIcons);
+          window.addEventListener("load", refreshIcons, { once: true });
+        },
+        syncMode() {},
+        updateDetection() {
+          if (!this.source.trim()) { this.formatLabel = "等待输入"; this.recordCount = 0; this.backfillCount = 0; this.error = ""; return; }
+          try {
+            const parsed = normalizeRecordsFromText(this.source);
+            this.formatLabel = parsed.shape;
+            this.recordCount = parsed.records.length;
+            this.backfillCount = parsed.pending;
+            this.error = "";
+          } catch (error) {
+            this.formatLabel = "解析失败";
+            this.recordCount = 0;
+            this.backfillCount = 0;
+            this.error = error instanceof Error ? error.message : String(error);
+          }
+        },
+        renderOutput(result) {
+          this.outputText = result.text;
+          this.outputName = result.name;
+          this.outputMime = result.mime;
+          this.outputParts = result.parts || [result.text];
+          this.meta = `${result.name} | ${result.text.length.toLocaleString()} 字符预览`;
+          this.summary = result.summary;
+          this.shapeText = result.shape;
+          this.copyLabel = "复制";
+        },
+        convert() {
+          try {
+            const parsed = normalizeRecordsFromText(this.source), result = buildOutput(parsed.records, this.mode);
+            this.renderOutput(result);
+            this.error = "";
+          } catch (error) {
+            this.error = error instanceof Error ? error.message : String(error);
+          }
+        },
+        clearAll() {
+          this.source = "";
+          this.fileName = "未选择文件";
+          this.outputText = "";
+          this.outputName = "";
+          this.outputParts = [];
+          this.meta = "尚未生成";
+          this.summary = "还没有输出。确认识别结果正确后再执行转换。";
+          this.shapeText = "<code class=\"font-mono\">normalize</code> 下载 unified JSONL，<code class=\"font-mono\">to-sub</code> 下载 bundle JSON，多账号 <code class=\"font-mono\">to-cpa</code> 自动打包为 <code class=\"font-mono\">.tar</code>，压缩包内每个账号单独一个 JSON。导出文件名为 <code class=\"font-mono\">数量_YYYYMMDD_HHmmss</code>。";
+          this.copyLabel = "复制";
+          if (this.$refs.file) this.$refs.file.value = "";
+          this.updateDetection();
+        },
+        async loadFile(file) {
+          const text = await file.text();
+          this.source = text;
+          this.fileName = file?.name || "未选择文件";
+          this.updateDetection();
+        },
+        async handleFileSelect(event) {
+          const [file] = event.target.files || [];
+          if (file) await this.loadFile(file);
+        },
+        handleDrop(event) {
+          this.dragging = false;
+          const [file] = event.dataTransfer?.files || [];
+          if (file) this.loadFile(file).catch(error => { this.error = error instanceof Error ? error.message : String(error); });
+        },
+        async copyOutput() {
+          if (!this.outputText) return;
+          try {
+            if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(this.outputText);
+            else {
+              const textarea = document.createElement("textarea");
+              textarea.value = this.outputText; document.body.appendChild(textarea); textarea.select(); document.execCommand("copy"); textarea.remove();
+            }
+            this.copyLabel = "已复制";
+            setTimeout(() => { this.copyLabel = "复制"; }, 1200);
+          } catch (error) {
+            this.error = error instanceof Error ? error.message : String(error);
+          }
+        },
+        downloadOutput() {
+          if (!this.outputText) return;
+          const blob = new Blob(this.outputParts.length ? this.outputParts : [this.outputText], { type: this.outputMime }), url = URL.createObjectURL(blob), anchor = document.createElement("a");
+          anchor.href = url; anchor.download = this.outputName || "output.txt"; document.body.appendChild(anchor); anchor.click(); anchor.remove(); URL.revokeObjectURL(url);
+        }
+      };
+    }
+  </script>
+</body>
+</html>
