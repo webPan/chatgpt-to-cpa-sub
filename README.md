@@ -4,7 +4,7 @@
 
 ---
 
-**在线使用**：[https://your-domain.com](https://your-domain.com)
+**在线使用**：[https://webpan.github.io/chatgpt-to-cpa-sub/](https://webpan.github.io/chatgpt-to-cpa-sub/)
 
 ---
 
@@ -227,5 +227,3 @@ html.replace(/<script src="\.\/assets\/js\/utils\.js">[\s\S]*?app\.js"><\/script
 npm install
 npm run build   # 输出到 dist/，部署整个 dist/ 目录即可
 ```
-
-chatgpt-to-cpa-sub
