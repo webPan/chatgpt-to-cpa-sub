@@ -1,4 +1,10 @@
 /* ── Scrollbar — light panels (source textarea, sidebar) ── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
 textarea,
 aside {
   scrollbar-width: thin;
