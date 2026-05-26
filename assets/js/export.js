@@ -46,10 +46,10 @@ function createTarArchive(files) {
 }
 
 // ─── Output payload builders ──────────────────────────────────────────────────
-function buildCpaPayload(record) {
+function buildCpaPayload(record, options = {}) {
   const item = finalizeRecord(record);
   const exp = coerceTs(decodeJwtPayload(item.access_token).exp);
-  return {
+  const payload = {
     type: "codex",
     email: item.email,
     expired: exp ? toIso8(new Date(exp * 1000)) : "",
@@ -60,6 +60,8 @@ function buildCpaPayload(record) {
     last_refresh: toIso8(new Date()),
     refresh_token: item.refresh_token
   };
+  if (options.cpaSupportsWss) payload.websockets = true;
+  return payload;
 }
 
 function buildSubAccount(record) {
@@ -96,7 +98,7 @@ function buildSubAccount(record) {
 }
 
 // ─── Main output builder ──────────────────────────────────────────────────────
-function buildOutput(records, mode) {
+function buildOutput(records, mode, options = {}) {
   if (!records.length) throw new Error("当前输入里没有解析出有效记录。");
 
   if (mode === "normalize") {
@@ -112,7 +114,7 @@ function buildOutput(records, mode) {
   }
 
   if (mode === "to-cpa") {
-    const payloads = records.map(buildCpaPayload);
+    const payloads = records.map(record => buildCpaPayload(record, options));
     if (payloads.length === 1) {
       const text = JSON.stringify(payloads[0], null, 2);
       return {

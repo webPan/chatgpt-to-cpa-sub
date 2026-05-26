@@ -4,6 +4,7 @@ function converterApp() {
   return {
     source: "",
     mode: "normalize",
+    cpaSupportsWss: true,
     dragging: false,
     fileName: "未选择文件",
     formatLabel: "等待输入",
@@ -64,7 +65,9 @@ function converterApp() {
     convert() {
       try {
         const parsed = normalizeRecordsFromText(this.source);
-        const result = buildOutput(parsed.records, this.mode);
+        const result = buildOutput(parsed.records, this.mode, {
+          cpaSupportsWss: this.cpaSupportsWss
+        });
         this.renderOutput(result);
         this.error = "";
       } catch (error) {
