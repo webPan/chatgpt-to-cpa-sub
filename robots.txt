@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://webpan.github.io/chatgpt-to-cpa-sub/sitemap.xml

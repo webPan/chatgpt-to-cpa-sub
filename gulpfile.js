@@ -31,6 +31,7 @@ const paths = {
   tailwindConfig: "assets/js/tailwind.config.js",
   css:    "assets/css/app.css",
   images: "assets/images/**/*",
+  static: ["robots.txt", "sitemap.xml"],
   html:   "index.html",
   vendor: "assets/vendor/**/*",
   dist:   "dist/",
@@ -117,6 +118,10 @@ export function copyImages() {
     .pipe(gulp.dest(paths.dist + "images/", { encoding: false }));
 }
 
+export function copyStatic() {
+  return gulp.src(paths.static, { allowEmpty: true }).pipe(gulp.dest(paths.dist));
+}
+
 // ─── HTML：重写资源路径后输出到 dist/ ─────────────────────────────────────────────
 //   源文件使用 ./assets/ 路径（可直接在项目根目录开发预览）
 //   dist/index.html 的路径统一改为相对于 dist/ 目录
@@ -168,7 +173,7 @@ export function buildHTML() {
 // ─── 组合任务 ──────────────────────────────────────────────────────────────────
 
 const assets = () =>
-  gulp.parallel(buildJS, buildCSS, buildHTML, copyTailwindConfig, copyVendor, copyImages);
+  gulp.parallel(buildJS, buildCSS, buildHTML, copyTailwindConfig, copyVendor, copyImages, copyStatic);
 
 /** 开发构建：不混淆，快速，输出到 dist/ */
 export const dev = gulp.series(clean, assets());
@@ -184,6 +189,7 @@ export function watch() {
   gulp.watch(paths.html,          buildHTML);
   gulp.watch(paths.vendor,        copyVendor);
   gulp.watch(paths.images,        copyImages);
+  gulp.watch(paths.static,        copyStatic);
 }
 
 export const watchDev = gulp.series(dev, watch);

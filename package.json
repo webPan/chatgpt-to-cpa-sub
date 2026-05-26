@@ -1,9 +1,29 @@
 {
   "name": "chatgpt-to-cpa-sub",
   "version": "1.0.0",
-  "description": "ChatGPT 统一格式转 CPA / SUB",
+  "description": "纯前端 ChatGPT 账号凭据格式转换工具，支持 Unified JSONL、Codex JSON / JSONL、SUB bundle、CPA 和 SUB 导出。",
   "private": true,
   "type": "module",
+  "homepage": "https://webpan.github.io/chatgpt-to-cpa-sub/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/webPan/chatgpt-to-cpa-sub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/webPan/chatgpt-to-cpa-sub/issues"
+  },
+  "keywords": [
+    "chatgpt",
+    "openai",
+    "codex",
+    "cpa",
+    "sub",
+    "jsonl",
+    "jwt",
+    "token-converter",
+    "credentials",
+    "github-pages"
+  ],
   "scripts": {
     "dev": "gulp dev",
     "build": "gulp build",
